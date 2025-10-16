@@ -1,18 +1,82 @@
-name: GitHub Actions Demo
-run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
-on: [push]
+name: GitHub Actions Demo + Flask CI + CodeQL
+run-name: ${{ github.actor }} is testing out GitHub Actions
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '0 3 * * 0'  # Exécution hebdomadaire (dimanche à 3h)
+
 jobs:
-  Explore-GitHub-Actions:
+
+  # --- JOB 1 : Démo GitHub Actions ---
+  explore-github-actions:
+    name: Démonstration GitHub Actions
     runs-on: ubuntu-latest
     steps:
-      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
-      - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
-      - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+      - name: Étape 1 - Déclenchement
+        run: echo "Le job a été déclenché automatiquement par un événement ${{ github.event_name }}."
+      - name: Étape 2 - OS du runner
+        run: echo "Ce job tourne sur un serveur ${{ runner.os }} hébergé par GitHub."
+      - name: Étape 3 - Informations sur la branche
+        run: echo "Branche : ${{ github.ref }} — Dépôt : ${{ github.repository }}"
       - name: Check out repository code
-        uses: actions/checkout@v5
-      - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
-      - run: echo "🖥️ The workflow is now ready to test your code on the runner."
-      - name: List files in the repository
+        uses: actions/checkout@v4
+      - name: Étape 4 - Confirmation du clone
+        run: echo "Le dépôt ${{ github.repository }} a été cloné sur le runner."
+      - name: Étape 5 - Lister les fichiers
+        run: ls ${{ github.workspace }}
+      - name: Étape 6 - Statut du job
+        run: echo "Le statut du job est : ${{ job.status }}."
+
+  # --- JOB 2 : Build + Test Flask ---
+  build:
+    name: Build & Test Flask
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configuration de Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installation des dépendances
         run: |
-          ls ${{ github.workspace }}
-      - run: echo "🍏 This job's status is ${{ job.status }}."
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Lancement de l'application (test)
+        run: |
+          nohup python app.py &
+          sleep 5
+          curl -f http://127.0.0.1:5000 || exit 1
+
+  # --- JOB 3 : Analyse statique CodeQL ---
+  codeql:
+    name: Analyse statique CodeQL (SAST)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'python' ]
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Initialisation de CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Analyse CodeQL
+        uses: github/codeql-action/analyze@v3
